@@ -1,114 +1,100 @@
-// Código Corregido para supabase/functions/process_message/index.ts
-
 import { createClient } from 'npm:@supabase/supabase-js@2.44.0';
 import { Application, Router } from 'https://deno.land/x/oak@v12.6.1/mod.ts';
 
-// 1. Tipado de Request/Response
-interface MessagePayload {
-  user_message: string;
-}
+// 1. Configuración de Supabase Admin y CORS
+// ---------------------------------------------------------------------
 
-// 2. Setup del cliente Supabase para Service Role
-// --- VERIFICACIÓN DE VARIABLES CRÍTICAS ---
+// URL de tu Vercel (para CORS)
+const VERCEL_ORIGIN = 'https://agente-ia-demo-tfv0u8d75-lilas-projects-d4fef991.vercel.app'; 
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-const SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY');
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+// 🚨 CORRECCIÓN: Lee el secreto como SERVICE_ROLE_KEY
+const SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY'); 
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !OPENAI_API_KEY) {
-    console.error("ERROR: Faltan variables de entorno críticas (URL, SERVICE_ROLE_KEY o OPENAI_API_KEY).");
-    // Aunque no podemos detener el worker de Deno.serve aquí,
-    // el router puede manejar la falta de las variables.
-}
+// Cliente Admin (para escribir en la DB ignorando RLS)
+// @ts-ignore
+const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { persistSession: false }
+});
 
-// Inicialización del cliente de Supabase (solo si las claves existen)
-const supabaseAdmin = SUPABASE_URL && SERVICE_ROLE_KEY 
-    ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-        auth: { persistSession: false },
-    })
-    : null; // Si falta alguna clave, el cliente será nulo.
-
-
-// 3. Router y Lógica de la Edge Function
 const router = new Router();
+const app = new Application();
 
-router.post('/', async (ctx) => {
+// Middleware CORS
+app.use(async (ctx, next) => {
+    ctx.response.headers.set('Access-Control-Allow-Origin', VERCEL_ORIGIN);
+    ctx.response.headers.set('Access-Control-Allow-Headers', 'authorization, x-client-info, apikey, content-type');
+    ctx.response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    if (ctx.request.method === 'OPTIONS') { ctx.response.status = 204; return; }
+    await next();
+});
+
+
+// 2. RUTA PRINCIPAL POST (Lógica de Negocio y LLM)
+// ---------------------------------------------------------------------
+router.post('/process_message', async (ctx) => {
+  let user_id; 
+
   try {
-    // Verificar si la inicialización de claves falló al inicio
-    if (!supabaseAdmin || !OPENAI_API_KEY) {
-        ctx.response.status = 500;
-        return ctx.response.body = { error: 'Error interno: La función no se inicializó correctamente (variables faltantes).' };
-    }
-
-    // --- SEGURIDAD: 3.1. Verificar Token JWT ---
-    const authHeader = ctx.request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      ctx.response.status = 401;
-      return ctx.response.body = { error: 'No autorizado: JWT no proporcionado.' };
-    }
-    const token = authHeader.substring(7);
-
-    // Obtener el ID del usuario del token
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
-      console.error('Error de autenticación:', authError?.message || 'Usuario no encontrado');
-      ctx.response.status = 401;
-      return ctx.response.body = { error: 'Token inválido o usuario no autenticado.' };
-    }
-    const user_id = user.id;
-
-    // --- LÓGICA DE NEGOCIO: 3.2. Procesar Mensaje ---
-    const payload = await ctx.request.body({ type: 'json' }).value as MessagePayload;
+    // Obtener el mensaje y el ID de usuario del cuerpo JSON
+    const payload = await ctx.request.body({ type: 'json' }).value;
     const userMessage = payload.user_message;
+    const userIdFromFrontend = payload.user_id; 
 
-    if (!userMessage) {
+    if (!userMessage || !userIdFromFrontend) {
       ctx.response.status = 400;
-      return ctx.response.body = { error: 'Mensaje de usuario requerido.' };
+      return ctx.response.body = { error: 'Mensaje y user_id son requeridos.' };
     }
+    user_id = userIdFromFrontend; 
 
-    // --- INTEGRACIÓN LLM: 3.3. Llamada a la IA (OpenAI) ---
-    // Usamos la variable OPENAI_API_KEY ya verificada y no el Deno.env.get() de nuevo.
+    // --- LLAMADA A HUGGING FACE (Usando el Secreto) ---
+    // Lee el token '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' del secreto 'OPENAI_API_KEY'
+    const HF_TOKEN = Deno.env.get('OPENAI_API_KEY'); 
     
-    // Prompt de sistema para darle un rol al agente
-    const systemPrompt = "Eres un agente de soporte de IA experto y amigable que responde preguntas de forma concisa y profesional.";
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    if (!HF_TOKEN) {
+        ctx.response.status = 500;
+        return ctx.response.body = { error: 'Token de IA no configurado en Supabase Secrets.' };
+    }
+    
+    const HF_MODEL = "openai-community/gemma-2b-it"; 
+    const HF_ENDPOINT = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+
+    const systemPrompt = "Eres un asistente de IA experto y conciso en el contexto de Lead Developer Full-Stack.";
+    const fullPrompt = `Instrucciones: ${systemPrompt} \n\nUsuario: ${userMessage}`;
+
+    const response = await fetch(HF_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // ✅ Usamos la clave ya verificada
-        'Authorization': `Bearer ${OPENAI_API_KEY}`, 
+        'Authorization': `Bearer ${HF_TOKEN}` 
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-        ],
-      }),
+        inputs: fullPrompt,
+        options: { wait_for_model: true } 
+      })
     });
 
-    // --- MANEJO DE ERROR DE RESPUESTA DE OPENAI ---
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error de OpenAI:', errorData);
-        ctx.response.status = response.status;
-        return ctx.response.body = { 
-            error: `Error de la IA: ${errorData.error?.message || 'Error desconocido.'}` 
-        };
-    }
-    
+    if (!response.ok) {
+        const status = response.status;
+        const errorBody = await response.text(); 
+        console.error(`Error de Hugging Face: HTTP ${status}`, errorBody);
+        ctx.response.status = 503; 
+        return ctx.response.body = { error: `Error con la IA (HTTP ${status}). Revisa el token.` };
+    }
+
     const data = await response.json();
-    const agentResponse = data.choices?.[0]?.message.content || 'Error: No pude obtener una respuesta de la IA.';
-    
-    // --- ESCRITURA EN DB: 3.4. Guardar la conversación ---
-    const { error: dbError } = await supabaseAdmin
-      .from('conversations')
-      .insert({
-        user_id: user_id,
-        user_message: userMessage,
-        agent_response: agentResponse,
-      });
+    const agentResponse = data?.[0]?.generated_text || 'Error: No pude obtener una respuesta de la IA.';
+    
+    // Limpieza de la respuesta del LLM
+    const cleanedResponse = agentResponse.split("Usuario:")[0].trim();
+    const finalResponse = cleanedResponse.replace(`Instrucciones: ${systemPrompt}`, "").trim();
+
+    // --- ESCRITURA EN DB (Usando Cliente Admin con el ID real) ---
+    const { error: dbError } = await supabaseAdmin.from('conversations').insert({
+      user_id: user_id, 
+      user_message: userMessage,
+      agent_response: finalResponse
+    });
 
     if (dbError) {
       console.error('Error al guardar en DB:', dbError.message);
@@ -116,19 +102,20 @@ router.post('/', async (ctx) => {
       return ctx.response.body = { error: 'Error interno al guardar la conversación.' };
     }
 
-    // --- 3.5. Respuesta Final ---
-    ctx.response.body = { agent_response: agentResponse };
+    // --- Respuesta Final al Frontend ---
+    ctx.response.body = { agent_response: finalResponse };
 
   } catch (error) {
     console.error('Error general en la función:', error.message);
     ctx.response.status = 500;
-    ctx.response.body = { error: 'Error interno del servidor.' };
+    ctx.response.body = { error: `Error interno del servidor: ${error.message}` };
   }
 });
 
-// 4. Montar la aplicación Oak (necesario para Edge Functions complejas)
-const app = new Application();
+// 3. Exportar el Handler de Oak
+// ---------------------------------------------------------------------
 app.use(router.routes());
 app.use(router.allowedMethods());
 
-Deno.serve(app.fetch);
+// @ts-ignore
+export default app.listen;
