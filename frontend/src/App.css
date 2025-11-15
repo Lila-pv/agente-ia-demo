@@ -1,42 +1,142 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* ========================================================= */
+/* VARIABLES CSS - PALETA MODERNA (BLANCOS, GRISES, VERDE)   */
+/* ========================================================= */
+:root {
+  /* Fondos y Textos Básicos */
+  --color-background-primary: #F0F4F8; /* Gris muy claro (casi blanco) */
+  --color-background-secondary: #FFFFFF; /* Blanco puro para tarjetas */
+  --color-text-primary: #333333; /* Gris oscuro para el texto principal */
+  --color-text-secondary: #777777; /* Gris medio para descripciones */
+  --color-border: #DDE1E6; /* Gris de borde suave */
+
+  /* Colores de Marca (Verde y Acento) */
+  --color-accent-green: #4CAF50; /* Verde brillante y moderno */
+  --color-accent-green-dark: #388E3C; /* Verde oscuro para hover */
+  --color-success: #4CAF50;
+  --color-error: #F44336; /* Rojo para errores */
+}
+
+/* ========================================================= */
+/* ESTILOS GLOBALES Y DE CONTENEDOR                           */
+/* ========================================================= */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-background-primary);
+  color: var(--color-text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh; /* Asegura que ocupe toda la altura */
+}
+
+/* Contenedor principal de la aplicación */
+.App {
+  width: 100%;
+  max-width: 480px; /* Ancho máximo para una interfaz de chat moderna */
+  height: 90vh;
+  background-color: var(--color-background-secondary);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); /* Sombra suave para darle profundidad */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ========================================================= */
+/* COMPONENTES DE CHAT ESPECÍFICOS                            */
+/* ========================================================= */
+
+/* Estilo del encabezado (Header) */
+.header {
+  background-color: var(--color-accent-green);
+  color: #FFFFFF;
+  padding: 15px 20px;
   text-align: center;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Contenedor de mensajes */
+.message-list {
+  flex-grow: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: var(--color-background-primary);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Estilo de la burbuja del usuario (Blanco/Gris) */
+.user-message {
+  background-color: var(--color-background-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  padding: 10px 15px;
+  border-radius: 18px 18px 4px 18px;
+  margin-left: auto; /* Alinea a la derecha */
+  max-width: 80%;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* Estilo de la burbuja del Agente IA (Verde Claro) */
+.agent-message {
+  background-color: #E8F5E9; /* Un verde muy claro */
+  color: var(--color-text-primary);
+  padding: 10px 15px;
+  border-radius: 18px 18px 18px 4px;
+  margin-right: auto; /* Alinea a la izquierda */
+  max-width: 80%;
+  margin-bottom: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.card {
-  padding: 2em;
+/* Contenedor del formulario de entrada */
+.input-container {
+  padding: 15px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  background-color: var(--color-background-secondary);
 }
 
-.read-the-docs {
-  color: #888;
+/* Campo de texto (Input) */
+.input-container input[type="text"] {
+  flex-grow: 1;
+  padding: 10px 15px;
+  border: 1px solid var(--color-border);
+  border-radius: 25px;
+  font-size: 16px;
+  margin-right: 10px;
+  transition: border-color 0.2s;
+}
+
+.input-container input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-accent-green);
+}
+
+/* Botón de Enviar (Send Button) */
+.input-container button {
+  background-color: var(--color-accent-green);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.input-container button:disabled {
+  background-color: #BDBDBD; /* Gris cuando está deshabilitado */
+  cursor: not-allowed;
+}
+
+.input-container button:not(:disabled):hover {
+  background-color: var(--color-accent-green-dark);
+  transform: translateY(-1px);
 }
