@@ -1,17 +1,15 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.44.0'; // CORRECCIÓN: Estaba mal tipado, ahora es 'npm:'
+import { createClient } from 'npm:@supabase/supabase-js@2.44.0'; // CORREGIDO: Uso correcto de 'npm:'
 import { Application, Router } from 'https://deno.land/x/oak@v12.6.1/mod.ts';
 
 // 1. Configuración de Supabase Admin y CORS
 // ---------------------------------------------------------------------
 
-// URL de tu Vercel (para CORS)
 const VERCEL_ORIGIN = 'https://agente-ia-demo-tfv0u8d75-lilas-projects-d4fef991.vercel.app'; 
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
-// Lee el secreto SERVICE_ROLE_KEY
 const SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY'); 
 
-// Cliente Admin (para escribir en la DB ignorando RLS)
+// Cliente Admin 
 // @ts-ignore
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false }
@@ -36,7 +34,6 @@ router.post('/process_message', async (ctx) => {
     let user_id; 
 
     try {
-        // Obtener el mensaje y el ID de usuario del cuerpo JSON
         const payload = await ctx.request.body({ type: 'json' }).value;
         const userMessage = payload.user_message;
         const userIdFromFrontend = payload.user_id; 
@@ -47,8 +44,7 @@ router.post('/process_message', async (ctx) => {
         }
         user_id = userIdFromFrontend; 
 
-        // --- LLAMADA A HUGGING FACE (Usando el Secreto) ---
-        // Lee el token del secreto 'OPENAI_API_KEY'
+        // --- LLAMADA A HUGGING FACE ---
         const HF_TOKEN = Deno.env.get('OPENAI_API_KEY'); 
         
         if (!HF_TOKEN) {
@@ -56,7 +52,7 @@ router.post('/process_message', async (ctx) => {
             return ctx.response.body = { error: 'Token de IA no configurado en Supabase Secrets.' };
         }
         
-        // MODELO CORREGIDO para evitar timeouts
+        // MODELO OPTIMIZADO: Más rápido para evitar timeouts de Edge Function
         const HF_MODEL = "google/gemma-2b"; 
         const HF_ENDPOINT = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
 
@@ -90,7 +86,7 @@ router.post('/process_message', async (ctx) => {
         const cleanedResponse = agentResponse.split("Usuario:")[0].trim();
         const finalResponse = cleanedResponse.replace(`Instrucciones: ${systemPrompt}`, "").trim();
 
-        // --- ESCRITURA EN DB (Usando Cliente Admin con el ID real) ---
+        // --- ESCRITURA EN DB ---
         const { error: dbError } = await supabaseAdmin.from('conversations').insert({
             user_id: user_id, 
             user_message: userMessage,
