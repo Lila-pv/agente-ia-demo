@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.44.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.44.0'; // CORRECCIÓN: Estaba mal tipado, ahora es 'npm:'
 import { Application, Router } from 'https://deno.land/x/oak@v12.6.1/mod.ts';
 
 // 1. Configuración de Supabase Admin y CORS
